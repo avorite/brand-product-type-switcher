@@ -79,10 +79,12 @@ if (!defined('ABSPATH')) {
             <div id="bpt-s-logs" class="bpt-s-logs"></div>
         </div>
         
-        <div id="bpt-s-completion-message" class="bpt-s-completion-message" style="display: none;">
-            <div class="bpt-s-completion-content">
-                <h3 id="bpt-s-completion-title"></h3>
-                <p id="bpt-s-completion-text"></p>
+        <div id="bpt-s-result-message" class="bpt-s-result-message" style="display: none;">
+            <h3><?php esc_html_e('Processing Complete', 'brand-product-type-switcher'); ?></h3>
+            <div class="bpt-s-result-content">
+                <p><strong><?php esc_html_e('Successfully processed:', 'brand-product-type-switcher'); ?></strong> <span id="bpt-s-result-success">0</span></p>
+                <p><strong><?php esc_html_e('Skipped (already correct type):', 'brand-product-type-switcher'); ?></strong> <span id="bpt-s-result-skipped">0</span></p>
+                <p><strong><?php esc_html_e('Errors:', 'brand-product-type-switcher'); ?></strong> <span id="bpt-s-result-errors">0</span></p>
             </div>
         </div>
     </div>

@@ -268,8 +268,10 @@ class Brand_Product_Type_Switcher {
             'total' => count($product_ids),
             'processed' => 0,
             'success' => 0,
+            'skipped' => 0,
             'errors' => 0,
             'logs' => array(),
+            'last_log_index' => 0,
             'start_time' => current_time('mysql'),
             'status' => 'processing',
         );
@@ -329,40 +331,48 @@ class Brand_Product_Type_Switcher {
                 'processed' => $session_data['processed'],
                 'total' => $session_data['total'],
                 'success' => $session_data['success'],
+                'skipped' => isset($session_data['skipped']) ? $session_data['skipped'] : 0,
                 'errors' => $session_data['errors'],
-                'logs' => array_slice($session_data['logs'], -10),
+                'logs' => array(),
             );
         }
         
         // Process batch
+        $new_logs = array();
         foreach ($batch as $product_id) {
             $result = $this->switch_product_type($product_id, $product_type);
             
             $session_data['processed']++;
             
             if ($result['success']) {
-                $session_data['success']++;
-                $log_message = sprintf(
-                    __('Product #%d (%s) switched to %s successfully.', 'brand-product-type-switcher'),
-                    $product_id,
-                    isset($result['product_name']) ? $result['product_name'] : 'Unknown',
-                    $product_type
-                );
-                // Only add if not already in logs (prevent duplicates)
-                if (!in_array($log_message, $session_data['logs'])) {
-                    $session_data['logs'][] = $log_message;
+                if (!empty($result['skipped'])) {
+                    $session_data['skipped']++;
+                    $log_message = sprintf(
+                        'Product #%d (%s) - skipped (already %s).',
+                        $product_id,
+                        $result['product_name'],
+                        $product_type
+                    );
+                } else {
+                    $session_data['success']++;
+                    $log_message = sprintf(
+                        'Product #%d (%s) switched to %s successfully.',
+                        $product_id,
+                        $result['product_name'],
+                        $product_type
+                    );
                 }
+                $session_data['logs'][] = $log_message;
+                $new_logs[] = $log_message;
             } else {
                 $session_data['errors']++;
                 $log_message = sprintf(
-                    __('Product #%d: %s', 'brand-product-type-switcher'),
+                    'Product #%d: %s',
                     $product_id,
                     $result['message']
                 );
-                // Only add if not already in logs (prevent duplicates)
-                if (!in_array($log_message, $session_data['logs'])) {
-                    $session_data['logs'][] = $log_message;
-                }
+                $session_data['logs'][] = $log_message;
+                $new_logs[] = $log_message;
             }
         }
         
@@ -379,9 +389,10 @@ class Brand_Product_Type_Switcher {
             'processed' => $session_data['processed'],
             'total' => $session_data['total'],
             'success' => $session_data['success'],
+            'skipped' => $session_data['skipped'],
             'errors' => $session_data['errors'],
             'progress' => $progress,
-            'logs' => array_slice($session_data['logs'], -10),
+            'logs' => $new_logs,
         );
     }
     
@@ -428,40 +439,18 @@ class Brand_Product_Type_Switcher {
         if ($current_type === $new_type) {
             return array(
                 'success' => true,
+                'skipped' => true,
                 'message' => __('Product already has this type.', 'brand-product-type-switcher'),
                 'product_name' => $product->get_name(),
             );
         }
         
         // Change product type
-        $term_result = wp_set_object_terms($product_id, $new_type, 'product_type');
-        
-        if (is_wp_error($term_result)) {
-            return array(
-                'success' => false,
-                'message' => sprintf(__('Failed to set product type: %s', 'brand-product-type-switcher'), $term_result->get_error_message()),
-            );
-        }
+        wp_set_object_terms($product_id, $new_type, 'product_type');
         
         // Reload product to get updated type
         wc_delete_product_transients($product_id);
         $product = wc_get_product($product_id);
-        
-        if (!$product) {
-            return array(
-                'success' => false,
-                'message' => __('Failed to reload product after type change.', 'brand-product-type-switcher'),
-            );
-        }
-        
-        // Verify the type was actually changed
-        $actual_type = $product->get_type();
-        if ($actual_type !== $new_type) {
-            return array(
-                'success' => false,
-                'message' => sprintf(__('Product type mismatch. Expected: %s, Got: %s', 'brand-product-type-switcher'), $new_type, $actual_type),
-            );
-        }
         
         // Restore Product URL and button text if switching to External
         // Always preserve URL and button text in meta, regardless of product type
@@ -483,14 +472,7 @@ class Brand_Product_Type_Switcher {
         }
         
         // Save product
-        $save_result = $product->save();
-        
-        if (!$save_result) {
-            return array(
-                'success' => false,
-                'message' => __('Failed to save product after type change.', 'brand-product-type-switcher'),
-            );
-        }
+        $product->save();
         
         return array(
             'success' => true,

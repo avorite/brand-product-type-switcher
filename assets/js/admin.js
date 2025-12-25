@@ -5,7 +5,6 @@
     let selectedBrands = [];
     let currentSessionId = null;
     let processingInterval = null;
-    let processedLogs = new Set(); // Track processed log entries to avoid duplicates
     
     /**
      * Initialize
@@ -129,13 +128,15 @@
         $('#bpt-s-submit-btn').prop('disabled', true);
         $('.bpt-s-brand-checkbox, #bpt-s-product-type').prop('disabled', true);
         
-        // Show progress section
-        $('#bpt-s-progress-section').show();
-        
-        // Reset logs and completion message
+        // Reset and show progress section
         $('#bpt-s-logs').empty();
-        $('#bpt-s-completion-message').hide();
-        processedLogs.clear();
+        $('#bpt-s-result-message').hide();
+        $('#bpt-s-progress-bar-fill').css('width', '0%');
+        $('#bpt-s-progress-percent').text('0%');
+        $('#bpt-s-progress-count').text('(0 / 0)');
+        $('#bpt-s-stat-success').text('0');
+        $('#bpt-s-stat-errors').text('0');
+        $('#bpt-s-progress-section').show();
         
         // Initialize processing
         $.ajax({
@@ -221,6 +222,7 @@
         const processed = data.processed || 0;
         const total = data.total || 0;
         const success = data.success || 0;
+        const skipped = data.skipped || 0;
         const errors = data.errors || 0;
         
         // Update progress bar
@@ -228,7 +230,7 @@
         $('#bpt-s-progress-percent').text(progress + '%');
         $('#bpt-s-progress-count').text('(' + processed + ' / ' + total + ')');
         
-        // Update stats
+        // Update stats - show actual changes (success - skipped)
         $('#bpt-s-stat-success').text(success);
         $('#bpt-s-stat-errors').text(errors);
     }
@@ -238,16 +240,11 @@
      */
     function addLogs(logs) {
         logs.forEach(function(log) {
-            // Skip if already processed
-            if (processedLogs.has(log)) {
-                return;
-            }
-            
-            processedLogs.add(log);
-            
             let className = 'info';
             if (log.toLowerCase().indexOf('error') !== -1 || log.toLowerCase().indexOf('failed') !== -1) {
                 className = 'error';
+            } else if (log.toLowerCase().indexOf('skipped') !== -1) {
+                className = 'skipped';
             } else if (log.toLowerCase().indexOf('success') !== -1) {
                 className = 'success';
             }
@@ -279,42 +276,23 @@
         
         addLog('=== Processing completed! ===', 'success');
         
-        // Show completion message
-        const hasErrors = data.errors > 0;
-        const completionMessage = $('#bpt-s-completion-message');
-        const completionTitle = $('#bpt-s-completion-title');
-        const completionText = $('#bpt-s-completion-text');
+        // Show result message block
+        const success = data.success || 0;
+        const skipped = data.skipped || 0;
+        const errors = data.errors || 0;
         
-        if (hasErrors) {
-            completionMessage.removeClass('success').addClass('error');
-            completionTitle.text('Processing Completed with Errors');
-            completionText.html(
-                'Processing finished, but some errors occurred.<br>' +
-                '<strong>Success:</strong> ' + data.success + '<br>' +
-                '<strong>Errors:</strong> ' + data.errors + '<br>' +
-                '<strong>Total:</strong> ' + data.total
-            );
-        } else {
-            completionMessage.removeClass('error').addClass('success');
-            completionTitle.text('Processing Completed Successfully');
-            completionText.html(
-                'All products have been processed successfully.<br>' +
-                '<strong>Success:</strong> ' + data.success + '<br>' +
-                '<strong>Total:</strong> ' + data.total
-            );
-        }
+        $('#bpt-s-result-success').text(success);
+        $('#bpt-s-result-skipped').text(skipped);
+        $('#bpt-s-result-errors').text(errors);
+        $('#bpt-s-result-message').show();
         
-        completionMessage.show();
-        
-        // Scroll to completion message
+        // Scroll to result message
         $('html, body').animate({
-            scrollTop: completionMessage.offset().top - 100
+            scrollTop: $('#bpt-s-result-message').offset().top - 50
         }, 500);
         
         // Re-enable form
-        setTimeout(function() {
-            resetForm();
-        }, 1000);
+        resetForm();
     }
     
     /**
@@ -324,7 +302,6 @@
         $('#bpt-s-submit-btn').prop('disabled', false);
         $('.bpt-s-brand-checkbox, #bpt-s-product-type').prop('disabled', false);
         currentSessionId = null;
-        processedLogs.clear();
     }
     
     /**
