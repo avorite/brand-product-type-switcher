@@ -30,15 +30,17 @@ A powerful WordPress plugin for bulk switching product types (Simple/External) f
 
 ## 📦 Installation
 
-### Manual Installation
+For detailed installation instructions, see [INSTALLATION.md](INSTALLATION.md).
 
+### Quick Installation
+
+**Manual Installation:**
 1. Download or clone this repository
 2. Upload the `brand-product-type-switcher` folder to `/wp-content/plugins/` directory
 3. Activate the plugin through the 'Plugins' menu in WordPress
 4. Navigate to **WooCommerce → Brand Type Switcher** in the admin menu
 
-### Via Git
-
+**Via Git:**
 ```bash
 cd wp-content/plugins
 git clone https://github.com/avorite/brand-product-type-switcher.git
