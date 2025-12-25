@@ -207,8 +207,9 @@
                     resetForm();
                 }
             },
-            error: function() {
-                addLog('Error processing batch. Please try again.', 'error');
+            error: function(xhr, status, error) {
+                console.error('AJAX Error:', status, error, xhr.responseText);
+                addLog('Error processing batch: ' + (error || status || 'Unknown error'), 'error');
                 resetForm();
             }
         });

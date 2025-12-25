@@ -298,8 +298,12 @@ class Brand_Product_Type_Switcher {
             wp_send_json_error(array('message' => __('Session ID required.', 'brand-product-type-switcher')));
         }
         
-        $result = $this->process_batch($session_id, $offset);
-        wp_send_json_success($result);
+        try {
+            $result = $this->process_batch($session_id, $offset);
+            wp_send_json_success($result);
+        } catch (Exception $e) {
+            wp_send_json_error(array('message' => 'PHP Error: ' . $e->getMessage()));
+        }
     }
     
     /**
@@ -313,6 +317,11 @@ class Brand_Product_Type_Switcher {
                 'error' => true,
                 'message' => __('Session not found.', 'brand-product-type-switcher'),
             );
+        }
+        
+        // Ensure skipped counter exists
+        if (!isset($session_data['skipped'])) {
+            $session_data['skipped'] = 0;
         }
         
         $product_ids = $session_data['product_ids'];
@@ -400,85 +409,101 @@ class Brand_Product_Type_Switcher {
      * Switch product type
      */
     private function switch_product_type($product_id, $new_type) {
-        $product = wc_get_product($product_id);
-        
-        if (!$product) {
-            return array(
-                'success' => false,
-                'message' => __('Product not found.', 'brand-product-type-switcher'),
-            );
-        }
-        
-        // Save Product URL and button text if they exist
-        // Check both from product object and meta directly to ensure we don't lose data
-        $product_url = '';
-        $button_text = '';
-        
-        // Try to get from product object first (works for External products)
-        if ($product->is_type('external')) {
-            $product_url = $product->get_product_url();
-            $button_text = $product->get_button_text();
-        }
-        
-        // Also check meta directly as backup (works for all product types)
-        $meta_url = get_post_meta($product_id, '_product_url', true);
-        $meta_button_text = get_post_meta($product_id, '_button_text', true);
-        
-        // Use meta values if product object values are empty
-        if (empty($product_url) && !empty($meta_url)) {
-            $product_url = $meta_url;
-        }
-        if (empty($button_text) && !empty($meta_button_text)) {
-            $button_text = $meta_button_text;
-        }
-        
-        // Get current type
-        $current_type = $product->get_type();
-        
-        // If already the correct type, skip
-        if ($current_type === $new_type) {
+        try {
+            $product = wc_get_product($product_id);
+            
+            if (!$product) {
+                return array(
+                    'success' => false,
+                    'message' => __('Product not found.', 'brand-product-type-switcher'),
+                );
+            }
+            
+            $product_name = $product->get_name();
+            
+            // Save Product URL and button text if they exist
+            // Check both from product object and meta directly to ensure we don't lose data
+            $product_url = '';
+            $button_text = '';
+            
+            // Try to get from product object first (works for External products)
+            if ($product->is_type('external')) {
+                $product_url = $product->get_product_url();
+                $button_text = $product->get_button_text();
+            }
+            
+            // Also check meta directly as backup (works for all product types)
+            $meta_url = get_post_meta($product_id, '_product_url', true);
+            $meta_button_text = get_post_meta($product_id, '_button_text', true);
+            
+            // Use meta values if product object values are empty
+            if (empty($product_url) && !empty($meta_url)) {
+                $product_url = $meta_url;
+            }
+            if (empty($button_text) && !empty($meta_button_text)) {
+                $button_text = $meta_button_text;
+            }
+            
+            // Get current type
+            $current_type = $product->get_type();
+            
+            // If already the correct type, skip
+            if ($current_type === $new_type) {
+                return array(
+                    'success' => true,
+                    'skipped' => true,
+                    'message' => __('Product already has this type.', 'brand-product-type-switcher'),
+                    'product_name' => $product_name,
+                );
+            }
+            
+            // Change product type using WooCommerce method
+            wp_set_object_terms($product_id, $new_type, 'product_type');
+            
+            // Clear cache
+            clean_post_cache($product_id);
+            wc_delete_product_transients($product_id);
+            
+            // Reload product to get updated type
+            $product = wc_get_product($product_id);
+            
+            if (!$product) {
+                return array(
+                    'success' => false,
+                    'message' => __('Failed to reload product after type change.', 'brand-product-type-switcher'),
+                );
+            }
+            
+            // Restore Product URL and button text if switching to External
+            if ($new_type === 'external') {
+                if (!empty($product_url)) {
+                    update_post_meta($product_id, '_product_url', $product_url);
+                }
+                if (!empty($button_text)) {
+                    update_post_meta($product_id, '_button_text', $button_text);
+                }
+            } else {
+                // Even when switching to Simple, preserve URL in meta for future use
+                if (!empty($product_url)) {
+                    update_post_meta($product_id, '_product_url', $product_url);
+                }
+                if (!empty($button_text)) {
+                    update_post_meta($product_id, '_button_text', $button_text);
+                }
+            }
+            
             return array(
                 'success' => true,
-                'skipped' => true,
-                'message' => __('Product already has this type.', 'brand-product-type-switcher'),
-                'product_name' => $product->get_name(),
+                'message' => __('Product type switched successfully.', 'brand-product-type-switcher'),
+                'product_name' => $product_name,
+            );
+            
+        } catch (Exception $e) {
+            return array(
+                'success' => false,
+                'message' => $e->getMessage(),
             );
         }
-        
-        // Change product type
-        wp_set_object_terms($product_id, $new_type, 'product_type');
-        
-        // Reload product to get updated type
-        wc_delete_product_transients($product_id);
-        $product = wc_get_product($product_id);
-        
-        // Restore Product URL and button text if switching to External
-        // Always preserve URL and button text in meta, regardless of product type
-        if ($new_type === 'external') {
-            if (!empty($product_url)) {
-                $product->set_product_url($product_url);
-            }
-            if (!empty($button_text)) {
-                $product->set_button_text($button_text);
-            }
-        } else {
-            // Even when switching to Simple, preserve URL in meta for future use
-            if (!empty($product_url)) {
-                update_post_meta($product_id, '_product_url', $product_url);
-            }
-            if (!empty($button_text)) {
-                update_post_meta($product_id, '_button_text', $button_text);
-            }
-        }
-        
-        // Save product
-        $product->save();
-        
-        return array(
-            'success' => true,
-            'message' => __('Product type switched successfully.', 'brand-product-type-switcher'),
-            'product_name' => $product->get_name(),
-        );
     }
     
     /**
