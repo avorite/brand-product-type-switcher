@@ -38,8 +38,8 @@ if (!defined('ABSPATH')) {
             
             <select id="bpt-s-product-type" class="bpt-s-select">
                 <option value=""><?php esc_html_e('-- Select Product Type --', 'brand-product-type-switcher'); ?></option>
-                <option value="simple"><?php esc_html_e('С возможностью купить (Simple)', 'brand-product-type-switcher'); ?></option>
-                <option value="external"><?php esc_html_e('Товар ссылка (External/Affiliate product)', 'brand-product-type-switcher'); ?></option>
+                <option value="simple"><?php esc_html_e('Simple (Purchasable)', 'brand-product-type-switcher'); ?></option>
+                <option value="external"><?php esc_html_e('External/Affiliate Product', 'brand-product-type-switcher'); ?></option>
             </select>
         </div>
         
@@ -77,6 +77,13 @@ if (!defined('ABSPATH')) {
         <div class="bpt-s-logs-container">
             <h3><?php esc_html_e('Logs', 'brand-product-type-switcher'); ?></h3>
             <div id="bpt-s-logs" class="bpt-s-logs"></div>
+        </div>
+        
+        <div id="bpt-s-completion-message" class="bpt-s-completion-message" style="display: none;">
+            <div class="bpt-s-completion-content">
+                <h3 id="bpt-s-completion-title"></h3>
+                <p id="bpt-s-completion-text"></p>
+            </div>
         </div>
     </div>
 </div>

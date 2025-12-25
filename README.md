@@ -12,8 +12,8 @@ A powerful WordPress plugin for bulk switching product types (Simple/External) f
 - **Bulk Product Type Switching**: Change product types for multiple brands at once
 - **Brand Selection**: Easy checkbox interface to select multiple brands
 - **Product Type Options**:
-  - С возможностью купить (Simple)
-  - Товар ссылка (External/Affiliate product)
+  - Simple (Purchasable)
+  - External/Affiliate Product
 - **Progress Tracking**: Real-time progress bar with percentage and count
 - **Detailed Logging**: Complete log of all operations with success/error indicators
 - **Product URL Preservation**: Automatically preserves Product URL when switching types
@@ -58,8 +58,8 @@ git clone https://github.com/avorite/brand-product-type-switcher.git
 
 3. **Choose Product Type**
    - Select from the dropdown:
-     - **С возможностью купить (Simple)**: Regular purchasable products
-     - **Товар ссылка (External/Affiliate product)**: External/affiliate products
+     - **Simple (Purchasable)**: Regular purchasable products
+     - **External/Affiliate Product**: External/affiliate products
 
 4. **Start Processing**
    - Click "Save Changes" button

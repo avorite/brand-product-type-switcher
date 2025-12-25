@@ -5,6 +5,7 @@
     let selectedBrands = [];
     let currentSessionId = null;
     let processingInterval = null;
+    let processedLogs = new Set(); // Track processed log entries to avoid duplicates
     
     /**
      * Initialize
@@ -131,6 +132,11 @@
         // Show progress section
         $('#bpt-s-progress-section').show();
         
+        // Reset logs and completion message
+        $('#bpt-s-logs').empty();
+        $('#bpt-s-completion-message').hide();
+        processedLogs.clear();
+        
         // Initialize processing
         $.ajax({
             url: bptS.ajaxUrl,
@@ -232,6 +238,13 @@
      */
     function addLogs(logs) {
         logs.forEach(function(log) {
+            // Skip if already processed
+            if (processedLogs.has(log)) {
+                return;
+            }
+            
+            processedLogs.add(log);
+            
             let className = 'info';
             if (log.toLowerCase().indexOf('error') !== -1 || log.toLowerCase().indexOf('failed') !== -1) {
                 className = 'error';
@@ -266,10 +279,41 @@
         
         addLog('=== Processing completed! ===', 'success');
         
+        // Show completion message
+        const hasErrors = data.errors > 0;
+        const completionMessage = $('#bpt-s-completion-message');
+        const completionTitle = $('#bpt-s-completion-title');
+        const completionText = $('#bpt-s-completion-text');
+        
+        if (hasErrors) {
+            completionMessage.removeClass('success').addClass('error');
+            completionTitle.text('Processing Completed with Errors');
+            completionText.html(
+                'Processing finished, but some errors occurred.<br>' +
+                '<strong>Success:</strong> ' + data.success + '<br>' +
+                '<strong>Errors:</strong> ' + data.errors + '<br>' +
+                '<strong>Total:</strong> ' + data.total
+            );
+        } else {
+            completionMessage.removeClass('error').addClass('success');
+            completionTitle.text('Processing Completed Successfully');
+            completionText.html(
+                'All products have been processed successfully.<br>' +
+                '<strong>Success:</strong> ' + data.success + '<br>' +
+                '<strong>Total:</strong> ' + data.total
+            );
+        }
+        
+        completionMessage.show();
+        
+        // Scroll to completion message
+        $('html, body').animate({
+            scrollTop: completionMessage.offset().top - 100
+        }, 500);
+        
         // Re-enable form
         setTimeout(function() {
             resetForm();
-            alert('Processing completed!\n\nSuccess: ' + data.success + '\nErrors: ' + data.errors);
         }, 1000);
     }
     
@@ -280,6 +324,7 @@
         $('#bpt-s-submit-btn').prop('disabled', false);
         $('.bpt-s-brand-checkbox, #bpt-s-product-type').prop('disabled', false);
         currentSessionId = null;
+        processedLogs.clear();
     }
     
     /**

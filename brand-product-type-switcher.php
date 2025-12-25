@@ -342,19 +342,27 @@ class Brand_Product_Type_Switcher {
             
             if ($result['success']) {
                 $session_data['success']++;
-                $session_data['logs'][] = sprintf(
+                $log_message = sprintf(
                     __('Product #%d (%s) switched to %s successfully.', 'brand-product-type-switcher'),
                     $product_id,
-                    $result['product_name'],
+                    isset($result['product_name']) ? $result['product_name'] : 'Unknown',
                     $product_type
                 );
+                // Only add if not already in logs (prevent duplicates)
+                if (!in_array($log_message, $session_data['logs'])) {
+                    $session_data['logs'][] = $log_message;
+                }
             } else {
                 $session_data['errors']++;
-                $session_data['logs'][] = sprintf(
+                $log_message = sprintf(
                     __('Product #%d: %s', 'brand-product-type-switcher'),
                     $product_id,
                     $result['message']
                 );
+                // Only add if not already in logs (prevent duplicates)
+                if (!in_array($log_message, $session_data['logs'])) {
+                    $session_data['logs'][] = $log_message;
+                }
             }
         }
         
@@ -426,11 +434,34 @@ class Brand_Product_Type_Switcher {
         }
         
         // Change product type
-        wp_set_object_terms($product_id, $new_type, 'product_type');
+        $term_result = wp_set_object_terms($product_id, $new_type, 'product_type');
+        
+        if (is_wp_error($term_result)) {
+            return array(
+                'success' => false,
+                'message' => sprintf(__('Failed to set product type: %s', 'brand-product-type-switcher'), $term_result->get_error_message()),
+            );
+        }
         
         // Reload product to get updated type
         wc_delete_product_transients($product_id);
         $product = wc_get_product($product_id);
+        
+        if (!$product) {
+            return array(
+                'success' => false,
+                'message' => __('Failed to reload product after type change.', 'brand-product-type-switcher'),
+            );
+        }
+        
+        // Verify the type was actually changed
+        $actual_type = $product->get_type();
+        if ($actual_type !== $new_type) {
+            return array(
+                'success' => false,
+                'message' => sprintf(__('Product type mismatch. Expected: %s, Got: %s', 'brand-product-type-switcher'), $new_type, $actual_type),
+            );
+        }
         
         // Restore Product URL and button text if switching to External
         // Always preserve URL and button text in meta, regardless of product type
@@ -452,7 +483,14 @@ class Brand_Product_Type_Switcher {
         }
         
         // Save product
-        $product->save();
+        $save_result = $product->save();
+        
+        if (!$save_result) {
+            return array(
+                'success' => false,
+                'message' => __('Failed to save product after type change.', 'brand-product-type-switcher'),
+            );
+        }
         
         return array(
             'success' => true,
