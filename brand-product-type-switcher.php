@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('BPT_S_VERSION', '1.0.0');
+define('BPT_S_VERSION', '1.0.3');
 define('BPT_S_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('BPT_S_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('BPT_S_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -457,39 +457,57 @@ class Brand_Product_Type_Switcher {
                 );
             }
             
-            // Change product type using WooCommerce method
+            // Save current product data before changing type
+            $product_data = array(
+                'regular_price' => $product->get_regular_price(),
+                'sale_price' => $product->get_sale_price(),
+                'sku' => $product->get_sku(),
+                'manage_stock' => $product->get_manage_stock(),
+                'stock_quantity' => $product->get_stock_quantity(),
+                'stock_status' => $product->get_stock_status(),
+            );
+            
+            // Clear all caches first
+            clean_post_cache($product_id);
+            wc_delete_product_transients($product_id);
+            wp_cache_delete($product_id, 'posts');
+            
+            // Remove old product type term and set new one
+            wp_delete_object_term_relationships($product_id, 'product_type');
             wp_set_object_terms($product_id, $new_type, 'product_type');
             
-            // Clear cache
+            // Clear WooCommerce product cache
+            WC_Cache_Helper::invalidate_cache_group('product_' . $product_id);
+            
+            // Preserve Product URL in meta (works for both directions)
+            if (!empty($product_url)) {
+                update_post_meta($product_id, '_product_url', $product_url);
+            }
+            if (!empty($button_text)) {
+                update_post_meta($product_id, '_button_text', $button_text);
+            }
+            
+            // Restore basic product data
+            update_post_meta($product_id, '_regular_price', $product_data['regular_price']);
+            update_post_meta($product_id, '_sale_price', $product_data['sale_price']);
+            update_post_meta($product_id, '_sku', $product_data['sku']);
+            update_post_meta($product_id, '_manage_stock', $product_data['manage_stock'] ? 'yes' : 'no');
+            update_post_meta($product_id, '_stock', $product_data['stock_quantity']);
+            update_post_meta($product_id, '_stock_status', $product_data['stock_status']);
+            
+            // Final cache clear
             clean_post_cache($product_id);
             wc_delete_product_transients($product_id);
             
-            // Reload product to get updated type
-            $product = wc_get_product($product_id);
+            // Verify the change
+            $updated_product = wc_get_product($product_id);
+            $new_actual_type = $updated_product ? $updated_product->get_type() : 'unknown';
             
-            if (!$product) {
+            if ($new_actual_type !== $new_type) {
                 return array(
                     'success' => false,
-                    'message' => __('Failed to reload product after type change.', 'brand-product-type-switcher'),
+                    'message' => sprintf('Failed to change type. Expected: %s, Got: %s', $new_type, $new_actual_type),
                 );
-            }
-            
-            // Restore Product URL and button text if switching to External
-            if ($new_type === 'external') {
-                if (!empty($product_url)) {
-                    update_post_meta($product_id, '_product_url', $product_url);
-                }
-                if (!empty($button_text)) {
-                    update_post_meta($product_id, '_button_text', $button_text);
-                }
-            } else {
-                // Even when switching to Simple, preserve URL in meta for future use
-                if (!empty($product_url)) {
-                    update_post_meta($product_id, '_product_url', $product_url);
-                }
-                if (!empty($button_text)) {
-                    update_post_meta($product_id, '_button_text', $button_text);
-                }
             }
             
             return array(
